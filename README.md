@@ -17,7 +17,7 @@ If you are using the codes in this repository, please cite the paper
 
 ## Build
 
-See [docs/env_tacc.md](docs/env_tacc.md) for environment setup on TACC Vista (GH200) and Stampede3 (H100).
+See [docs/installation.md](docs/installation.md) for the laptop and HPC installation paths. The existing [TACC Vista and Stampede3 instructions](docs/env_tacc.md) remain available.
 
 ## Reproduce paper results
 The trained models, including the regressor and classifier, are provided in the folder `model/`   
