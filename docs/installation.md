@@ -63,6 +63,15 @@ conda activate "$PWD/GrainGNN-Installation-Frontier-ROCm72/graingnn_venv_rocm72"
 
 The installer accepts `INSTALL_ROOT`, `VENV_PATH`, and `PYTHON_VERSION` overrides; see the script header for defaults. It does not install HydraGNN's additional packages or optional PyG compiled extensions.
 
+The Frontier installer prints timestamped stage start and finish messages, elapsed time per stage, and the failing stage if a command exits with an error. To run it in the background and follow its progress from the repository root:
+
+```sh
+nohup bash scripts/hpc/olcf/frontier/installation/install-rocm72.sh > frontier-install.log 2>&1 &
+tail -f frontier-install.log
+```
+
+The log reports the current installation stage; package downloads may also show pip's progress bar. Press `Ctrl+C` to stop following the log without stopping the installer.
+
 ## Verify
 
 After installation, activate the environment and run the focused tests:
