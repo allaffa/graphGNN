@@ -9,10 +9,12 @@ build_slice_graph(S) runs, in order:
 Coordinates are cells: x along columns, y along rows; corner (i, j) is at (x, y) = (j + 0.5, i + 0.5).
 Grain ids must be >= 0. For a non-periodic axis pass wall_id: the image is padded by one cell of that id, all
 positions refer to the padded image, and the wall appears as a neighbour of the grains touching it, not as a grain.
+Two-sided grains (lenses, two junctions joined by two edges) and enclosed grains (one neighbour, no junctions) are
+legal states of a shrinking grain and are reported, not rejected.
 """
 from collections import defaultdict, Counter
 import numpy as np
-from .periodic_grid import wrap_delta, wrap_point
+from .periodic_grid import roll, wrap_delta, wrap_point
 from .slice_cleanup import remove_islands, split_bad_corners, corner_blocks
 from .boundary_tracing import boundary_segments, find_junctions
 from .network_types import Grain, SliceGraph
@@ -87,12 +89,25 @@ def polygon_cycle(grain_edges, edges):
     return cycle_junctions, cycle_edges, closed
 
 
+def image_neighbours(S, gid, periodic):
+    """Ids sharing a cell side with grain gid, read from the image. Used for a grain that has no junctions, whose
+    boundary is a closed loop inside a single neighbour and therefore carries no edge."""
+    mask = S == gid
+    ids = set()
+    for shift, axis in ((1, 0), (-1, 0), (1, 1), (-1, 1)):
+        ids.update(np.unique(roll(S, shift, axis, periodic)[mask]).tolist())
+    ids.discard(gid)
+    ids.discard(-1)
+    return ids
+
+
 def build_grains(S, junctions, edges, periodic, wall_id=None):
     """One Grain per id in the cleaned image, the wall excluded.
 
     Neighbours and incident edges come from the edge pairs; the area is the cell count; the centroid is the mean
     of the polygon's junction positions, unwrapped across periodic seams, which is the legacy GrainGNN definition.
-    Returns (grains: gid -> Grain, number of grains whose polygon walk did not close).
+    A grain without junctions (enclosed by one neighbour) gets its neighbour from the image and its centroid from
+    its cells. Returns (grains: gid -> Grain, number of grains whose polygon walk did not close).
     """
     H, W = S.shape
     neighbours = defaultdict(set)
@@ -103,9 +118,14 @@ def build_grains(S, junctions, edges, periodic, wall_id=None):
         neighbours[b].add(a)
         edges_of_grain[a].append(edge.eid)
         edges_of_grain[b].append(edge.eid)
+    ids, counts = np.unique(S, return_counts=True)
+    for gid in ids.tolist():
+        if gid != wall_id and gid not in edges_of_grain:                 # enclosed grain
+            for other in image_neighbours(S, gid, periodic):
+                neighbours[gid].add(other)
+                neighbours[other].add(gid)
     grains = {}
     n_open = 0
-    ids, counts = np.unique(S, return_counts=True)
     for gid, area in zip(ids.tolist(), counts.tolist()):
         if gid == wall_id:
             continue
@@ -118,7 +138,7 @@ def build_grains(S, junctions, edges, periodic, wall_id=None):
             dy = wrap_delta(points[:, 1] - ref[1], H, periodic[1])
             unwrapped = ref + np.column_stack([dx, dy])
             centroid = wrap_point(unwrapped.mean(0), S.shape, periodic)
-        else:                                                  # a grain without boundaries: it fills the slice
+        else:                                                  # enclosed grain, or one grain filling the slice
             yy, xx = np.where(S == gid)
             centroid = np.array([xx.mean(), yy.mean()])
         two_sided = len(neighbours[gid]) == 2
@@ -132,12 +152,14 @@ def validate(junctions, edges, grains, n_open_cycles, periodic, wall_id=None):
     valid requires every junction to have degree 3, every grain's polygon to close, and the Euler characteristic
     V - E + F of the domain: 0 on the torus (both axes periodic), 2 on a disk (both axes walled, the wall counted
     as the outer face); a cylinder (one periodic axis) is not checked. The Euler count catches global defects,
-    such as a lost junction or a ring-shaped grain, that the local checks can miss.
+    such as a lost junction or a ring-shaped grain, that the local checks can miss. Enclosed grains have no
+    junctions and are not faces of the junction network, so they are left out of F and counted separately.
     """
     degree_hist = Counter(len(junction.edges) for junction in junctions.values())
     V = len(junctions)
     E = len(edges)
-    F = len(grains) + (1 if wall_id is not None else 0)
+    enclosed = sum(not grain.junctions for grain in grains.values())
+    F = len(grains) - enclosed + (1 if wall_id is not None else 0)
     euler = V - E + F
     if all(periodic):
         euler_ok = euler == 0
@@ -148,7 +170,7 @@ def validate(junctions, edges, grains, n_open_cycles, periodic, wall_id=None):
     triple_counts = Counter(junction.triple for junction in junctions.values())
     report = dict(junctions=V, edges=E, grains=len(grains), euler=euler, degree_hist=dict(degree_hist),
                   bad_cycles=n_open_cycles,
-                  lenses=sum(grain.two_sided for grain in grains.values()),
+                  lenses=sum(grain.two_sided for grain in grains.values()), enclosed=enclosed,
                   duplicate_triples=sum(count > 1 for count in triple_counts.values()))
     valid = euler_ok and n_open_cycles == 0 and set(degree_hist) <= {3}
     return valid, report
