@@ -61,7 +61,13 @@ module load craype-accel-amd-gfx90a PrgEnv-gnu miniforge3/23.11.0-0
 conda activate "$PWD/GrainGNN-Installation-Frontier-ROCm72/graingnn_venv_rocm72"
 ```
 
-The installer accepts `INSTALL_ROOT`, `VENV_PATH`, and `PYTHON_VERSION` overrides; see the script header for defaults. It does not install HydraGNN's additional packages or optional PyG compiled extensions.
+The installer configures this Conda environment to set `PYTHONNOUSERSITE=1` on activation. This prevents packages installed in your account's `~/.local` from shadowing the environment's ROCm PyTorch. Verify the active interpreter and PyTorch build with:
+
+```sh
+python -c 'import sys, torch; print(sys.executable); print(torch.__version__, torch.version.hip); print(torch.__file__)'
+```
+
+The executable and Torch path should be inside the `graingnn_venv_rocm72` directory, and `torch.version.hip` should report ROCm 7.2. The installer accepts `INSTALL_ROOT`, `VENV_PATH`, and `PYTHON_VERSION` overrides; see the script header for defaults. It does not install HydraGNN's additional packages or optional PyG compiled extensions.
 
 The Frontier installer prints timestamped stage start and finish messages, elapsed time per stage, and the failing stage if a command exits with an error. To run it in the background and follow its progress from the repository root:
 

@@ -73,6 +73,7 @@ if ! command -v conda >/dev/null 2>&1; then
     echo "Conda was not found after loading miniforge3." >&2
     exit 1
 fi
+export PYTHONNOUSERSITE=1
 finish_stage
 
 start_stage "Create or reuse the Conda environment"
@@ -82,6 +83,7 @@ if [[ ! -d "${VENV_PATH}/conda-meta" ]]; then
 else
     printf 'Reusing existing environment: %s\n' "${VENV_PATH}"
 fi
+conda env config vars set --prefix "${VENV_PATH}" PYTHONNOUSERSITE=1
 finish_stage
 
 export LD_LIBRARY_PATH="${CRAY_LD_LIBRARY_PATH:-}:${LD_LIBRARY_PATH:-}"
