@@ -87,6 +87,14 @@ To extract graph pairs from a PF `.h5` file for training:
  ```
 Then use `create_datasets.py` to combine graphs extracted from different PF files.
 
+From an ExaCA `GrainID` stack, or a cuPF `.h5`, with the `extract` package (slice network, tracking, GrainGNN view, samples):
+ ```sh
+ python3 -m extract.samples run/test.vtk graphs/exaca/seed1_samples.pkl --orientations GrainOrientationVectors.csv --G 1.9 --R 0.558 --seed 1 --smooth 5
+ python3 -m extract.samples rawdat_PF/40_40/Epita_*seed10020*.h5 graphs/40_40/seed10020_samples.pkl --cupf
+ python3 tests/test_samples.py
+ ```
+`--G` in K/um, `--R` the interface velocity in m/s (ExaCA: R/G). These samples have no `extraV` feature; do not mix them with the paper's dataset.
+
 
 
 
