@@ -87,4 +87,20 @@ python -m pip install pytest
 python -m pytest tests/
 ```
 
+### GPU smoke test
+
+To verify accelerator visibility and actual PyTorch and PyTorch Geometric execution, run the standalone smoke test from inside a GPU allocation. It fails rather than silently falling back to CPU if PyTorch cannot see a GPU:
+
+```sh
+python scripts/check_gpu.py
+```
+
+On Frontier, load the documented ROCm 7.2 modules and activate the GrainGNN environment as above, then run:
+
+```sh
+python scripts/check_gpu.py --require-rocm
+```
+
+The check reports the PyTorch/PyG versions and visible GPU, performs a synchronized PyTorch tensor operation, transfers a heterogeneous graph to the GPU, runs a PyG `HeteroConv` with `SAGEConv`, and checks the output and gradients. Run it inside a scheduler-provided GPU allocation; it is not part of the CPU-only pytest suite.
+
 For the TACC end-to-end sample workflow, use the validation commands in [docs/env_tacc.md](env_tacc.md).
