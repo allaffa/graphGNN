@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 *.swp
 .pytest_cache/
+dataset_train.pkl
+dataset_train.pkl.gz
+dataset_train.pkl.part
+dataset_train.pkl.gz.part

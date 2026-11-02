@@ -214,6 +214,8 @@ if __name__=='__main__':
     parser.add_argument("--regressor_id", type=int, default=0)
     parser.add_argument("--seed", type=int, default=35)
     parser.add_argument("--train_ratio", type=float, default=0.95)
+    parser.add_argument("--max_samples", type=int, default=None)
+    parser.add_argument("--epochs", type=int, default=None)
 
 
     parser.add_argument('--history', dest='history', action='store_true')
@@ -271,6 +273,10 @@ if __name__=='__main__':
             data_list = dill.load(inp)
         except:
             raise EOFError
+    if args.max_samples is not None:
+        if args.max_samples < 1:
+            raise ValueError("--max_samples must be at least 1")
+        data_list = data_list[:args.max_samples]
     num_train = int(args.train_ratio*len(data_list))
     num_valid = len(data_list) - num_train
     sample = data_list[0]
@@ -299,6 +305,11 @@ if __name__=='__main__':
 
     else:
         raise KeyError
+
+    if args.epochs is not None:
+        if args.epochs < 0:
+            raise ValueError("--epochs must be non-negative")
+        hp.epoch = args.epochs
     
         
     hp.features = sample.features

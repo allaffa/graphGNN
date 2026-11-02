@@ -87,6 +87,14 @@ python -m pip install -r requirements-test.txt
 python -m pytest tests/
 ```
 
+The published training-dataset test is opt-in because the archive is about 1 GB compressed and expands to several GB. It is cached under `~/.cache/graingnn` by default; set `GRAINGNN_DATA_DIR` to use another cache directory. If the archive or extracted dataset is absent, the test downloads the archive from the Google Drive link in the README. It trains on two samples for one epoch and writes model/output files only to pytest's temporary directory:
+
+```sh
+GRAINGNN_RUN_TRAINING_TEST=1 python -m pytest -m integration tests/test_training_integration.py
+```
+
+To use a dataset archive already downloaded to the repository root, set `GRAINGNN_DATA_DIR="$PWD"` for that command. The dataset files are ignored by Git.
+
 ### GPU smoke test
 
 To verify accelerator visibility and actual PyTorch and PyTorch Geometric execution, run the standalone smoke test from inside a GPU allocation. It fails rather than silently falling back to CPU if PyTorch cannot see a GPU:
