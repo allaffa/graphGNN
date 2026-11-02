@@ -87,13 +87,22 @@ python -m pip install -r requirements-test.txt
 python -m pytest tests/
 ```
 
-The published training-dataset test is opt-in because the archive is about 1 GB compressed and expands to several GB. It is cached under `~/.cache/graingnn` by default; set `GRAINGNN_DATA_DIR` to use another cache directory. If the archive or extracted dataset is absent, the test downloads the archive from the Google Drive link in the README. It trains on two samples for one epoch and writes model/output files only to pytest's temporary directory:
+The published training-dataset test is opt-in because its archive is about 1 GB compressed and expands to several GB. The test needs a writable cache directory with enough free space for both files. By default it uses `~/.cache/graingnn`. To choose a different cache directory, create it and set `GRAINGNN_DATA_DIR` before running the test. For example, from the repository root:
+
+```sh
+mkdir -p "$HOME/graingnn-data-cache"
+export GRAINGNN_DATA_DIR="$HOME/graingnn-data-cache"
+```
+
+Keep that environment variable set in later shells when you want to reuse this cache. If `dataset_train.pkl` is already in the directory, the test uses it. If not, but `dataset_train.pkl.gz` is present, the test extracts and caches the dataset. If neither file is present, it downloads the archive from the Google Drive link in the README, then extracts it. You can also put an archive you already downloaded at `$GRAINGNN_DATA_DIR/dataset_train.pkl.gz`. The cache is outside the repository in this example, so the large data files will not be included in Git.
+
+Run the opt-in test with the cache configured:
 
 ```sh
 GRAINGNN_RUN_TRAINING_TEST=1 python -m pytest -m integration tests/test_training_integration.py
 ```
 
-To use a dataset archive already downloaded to the repository root, set `GRAINGNN_DATA_DIR="$PWD"` for that command. The dataset files are ignored by Git.
+The training check uses two samples for one epoch and writes model/output files only to pytest's temporary directory. For a dataset archive already downloaded to the repository root, you can instead set `GRAINGNN_DATA_DIR="$PWD"` before running the command; those dataset filenames are ignored by Git.
 
 ### GPU smoke test
 
