@@ -83,7 +83,7 @@ The log reports the current installation stage; package downloads may also show 
 After installation, activate the environment and run the focused tests:
 
 ```sh
-python -m pip install pytest
+python -m pip install -r requirements-test.txt
 python -m pytest tests/
 ```
 
