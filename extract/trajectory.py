@@ -22,6 +22,9 @@ EVENT_DTYPE = np.dtype([('kind', 'U10'),            # eliminate, two_sided, encl
                         ('slots', np.int32, 2),     # switch: the two junction slots at the ends of the edge
                         ('n', np.int32)])           # eliminate: sides before; appear/two_sided/enclosed: sides now
 
+ARRAY_FIELDS = ('valid', 'report', 'gids', 'theta', 'area', 'centroid', 'n_sides', 'pos', 'pos_raw', 'triple',
+                'track', 'edge_offsets', 'edge_slots', 'edge_pair', 'edge_len_path', 'events')
+
 
 @dataclass
 class Trajectory:
@@ -95,9 +98,6 @@ class Trajectory:
                    z0=meta['z0'], source=meta['source'], pos_smooth=pos_smooth,
                    smooth_window=meta['smooth_window'], **arrays)
 
-
-ARRAY_FIELDS = ('valid', 'report', 'gids', 'theta', 'area', 'centroid', 'n_sides', 'pos', 'pos_raw', 'triple',
-                'track', 'edge_offsets', 'edge_slots', 'edge_pair', 'edge_len_path', 'events')
 
 
 def unwrap(points, shape, periodic):

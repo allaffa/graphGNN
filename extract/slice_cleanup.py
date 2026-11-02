@@ -15,24 +15,6 @@ SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))             # (dy, dx) offsets of the
 DIAGONALS = ((1, 1), (1, -1), (-1, 1), (-1, -1))      # (dy, dx) offsets of the four diagonal neighbours
 
 
-def remove_islands(S, periodic, max_iter=10):
-    """Keep the largest component of every grain and repaint the other pieces from the surrounding grains.
-
-    Repainting joins every island cell to a kept piece, so new islands cannot appear; the loop normally runs
-    twice (repaint, then confirm that nothing is left). max_iter only guards against a pathological image.
-    Returns (cleaned image, number of repainted cells).
-    """
-    S = S.copy()
-    changed = 0
-    for _ in range(max_iter):
-        island = island_mask(S, periodic)
-        if not island.any():
-            break
-        changed += int(island.sum())
-        S = flood_islands(S, island, periodic)
-    return S, changed
-
-
 def island_mask(S, periodic):
     """True for every cell that is not in the largest 4-connected piece of its grain.
     Among equal-sized pieces the one whose first cell comes first in raster order is kept."""
@@ -92,6 +74,24 @@ def flood_islands(S, island, periodic):
         S[yy[ready], xx[ready]] = new_ids[ready]
         island[yy[ready], xx[ready]] = False
     return S
+
+
+def remove_islands(S, periodic, max_iter=10):
+    """Keep the largest component of every grain and repaint the other pieces from the surrounding grains.
+
+    Repainting joins every island cell to a kept piece, so new islands cannot appear; the loop normally runs
+    twice (repaint, then confirm that nothing is left). max_iter only guards against a pathological image.
+    Returns (cleaned image, number of repainted cells).
+    """
+    S = S.copy()
+    changed = 0
+    for _ in range(max_iter):
+        island = island_mask(S, periodic)
+        if not island.any():
+            break
+        changed += int(island.sum())
+        S = flood_islands(S, island, periodic)
+    return S, changed
 
 
 def corner_blocks(S, periodic):

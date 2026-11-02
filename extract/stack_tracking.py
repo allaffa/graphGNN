@@ -25,6 +25,11 @@ from .trajectory import Trajectory, REPORT_KEYS, EVENT_DTYPE, smooth_tracks
 NONE2 = (-1, -1)
 
 
+def event(kind, k, grain=-1, pair_old=NONE2, pair_new=NONE2, slots=NONE2, n=-1):
+    """One row of Trajectory.events, in the field order of EVENT_DTYPE."""
+    return (kind, k, grain, pair_old, pair_new, slots, n)
+
+
 class SlotTable:
     """Hands out junction slots: freed slots are reused before new ones are opened."""
 
@@ -71,6 +76,19 @@ def place_started(started, cur, freed, slots, shape, periodic):
     return chosen
 
 
+def assign_slots(m, prev, cur, prev_slot, prev_track, slots, shape, periodic):
+    """Slot and track of every junction of cur from the Matching m against prev: a matched junction keeps the
+    slot and track of its predecessor, an ended junction frees its slot for this transition, a started junction
+    is placed by place_started and gets a new track."""
+    slot = {n: prev_slot[o] for o, n in m.matched.items()}
+    track = {n: prev_track[o] for o, n in m.matched.items()}
+    freed = [(prev_slot[o], prev.junctions[o].triple, prev.junctions[o].pos) for o in m.ended]
+    placed = place_started(m.started, cur, freed, slots, shape, periodic)
+    slot.update(placed)
+    track.update({jid: slots.new_track() for jid in placed})
+    return slot, track
+
+
 def switch_events(k, prev, cur, prev_slot, slot, alive):
     """Switch events between layers k - 1 and k: boundaries of prev whose two grains are both alive in cur but no
     longer share a boundary. See the module docstring for the slots and pair_new recorded."""
@@ -88,7 +106,7 @@ def switch_events(k, prev, cur, prev_slot, slot, alive):
         opened = tuple(sorted(four - {a, b}))
         if opened not in between_slots.get(frozenset((p, q)), ()):
             opened = NONE2
-        events.append(('switch', k, -1, edge.pair, opened, (p, q), -1))
+        events.append(event('switch', k, pair_old=edge.pair, pair_new=opened, slots=(p, q)))
     return events
 
 
@@ -97,14 +115,43 @@ def grain_events(k, gids, area, n_sides):
     events = []
     if k > 0:
         for r in np.flatnonzero((area[k - 1] > 0) & (area[k] == 0)):
-            events.append(('eliminate', k, gids[r], NONE2, NONE2, NONE2, n_sides[k - 1, r]))
+            events.append(event('eliminate', k, grain=gids[r], n=n_sides[k - 1, r]))
         for r in np.flatnonzero((area[k - 1] == 0) & (area[k] > 0)):
-            events.append(('appear', k, gids[r], NONE2, NONE2, NONE2, n_sides[k, r]))
+            events.append(event('appear', k, grain=gids[r], n=n_sides[k, r]))
     before = n_sides[k - 1] if k > 0 else np.zeros_like(n_sides[k])
     for n, kind in ((2, 'two_sided'), (1, 'enclosed')):
         for r in np.flatnonzero((n_sides[k] == n) & (before != n) & (area[k] > 0)):
-            events.append((kind, k, gids[r], NONE2, NONE2, NONE2, n))
+            events.append(event(kind, k, grain=gids[r], n=n))
     return events
+
+
+def layer_rows(cur, slot, track):
+    """The junction arrays of one layer in jid order, and its edge rows in eid order, both in slot terms."""
+    order = sorted(cur.junctions)
+    junctions = dict(slot=np.array([slot[j] for j in order], int),
+                     track=np.array([track[j] for j in order], int),
+                     pos=np.array([cur.junctions[j].pos for j in order]).reshape(-1, 2),
+                     pos_raw=np.array([cur.junctions[j].pos_raw for j in order]).reshape(-1, 2),
+                     triple=np.array([cur.junctions[j].triple for j in order], int).reshape(-1, 3))
+    edges = [(slot[e.j1], slot[e.j2], e.pair[0], e.pair[1], e.length_path)
+             for e in sorted(cur.edges.values(), key=lambda e: e.eid)]
+    return junctions, edges
+
+
+def pack_layers(layers, edge_rows, n_slots):
+    """Scatter the per-layer junction rows into (K, J, ...) arrays and concatenate the edge rows with offsets."""
+    K, J = len(layers), n_slots
+    pos, pos_raw = np.full((K, J, 2), np.nan), np.full((K, J, 2), np.nan)
+    triple, track = np.full((K, J, 3), -1, np.int32), np.full((K, J), -1, np.int32)
+    for k, layer in enumerate(layers):
+        s = layer['slot']
+        pos[k, s], pos_raw[k, s], triple[k, s], track[k, s] = layer['pos'], layer['pos_raw'], layer['triple'], layer['track']
+    counts = [len(rows) for rows in edge_rows]
+    flat = np.array([row for rows in edge_rows for row in rows], float).reshape(-1, 5)
+    return dict(pos=pos, pos_raw=pos_raw, triple=triple, track=track,
+                edge_offsets=np.concatenate([[0], np.cumsum(counts)]).astype(np.int64),
+                edge_slots=flat[:, :2].astype(np.int32), edge_pair=flat[:, 2:4].astype(np.int32),
+                edge_len_path=flat[:, 4])
 
 
 def track_stack(field, wall_id=None, max_jump=None, smooth=0, verbose=False, **slice_kwargs):
@@ -146,54 +193,28 @@ def track_stack(field, wall_id=None, max_jump=None, smooth=0, verbose=False, **s
             r = row[grain.gid]
             area[k, r], centroid[k, r], n_sides[k, r] = grain.area, grain.centroid, len(grain.neighbours)
 
-        # junction slots
-        if prev is None:
+        if prev is None:                                                   # layer 0: one slot and track per junction
             slot = {jid: slots.open() for jid in sorted(cur.junctions)}
             track = {jid: slots.new_track() for jid in sorted(cur.junctions)}
         else:
             m = match_junctions(prev, cur, max_jump)
-            slot = {n: prev_slot[o] for o, n in m.matched.items()}
-            track = {n: prev_track[o] for o, n in m.matched.items()}
-            freed = [(prev_slot[o], prev.junctions[o].triple, prev.junctions[o].pos) for o in m.ended]
-            placed = place_started(m.started, cur, freed, slots, shape, periodic)
-            slot.update(placed)
-            track.update({jid: slots.new_track() for jid in placed})
-
+            slot, track = assign_slots(m, prev, cur, prev_slot, prev_track, slots, shape, periodic)
             alive = {gid: area[k, row[gid]] > 0 for gid in row}
             events += switch_events(k, prev, cur, prev_slot, slot, alive)
         events += grain_events(k, gids, area, n_sides)
 
-        order = sorted(cur.junctions)
-        layers.append(dict(slot=np.array([slot[j] for j in order], int),
-                           track=np.array([track[j] for j in order], int),
-                           pos=np.array([cur.junctions[j].pos for j in order]).reshape(-1, 2),
-                           pos_raw=np.array([cur.junctions[j].pos_raw for j in order]).reshape(-1, 2),
-                           triple=np.array([cur.junctions[j].triple for j in order], int).reshape(-1, 3)))
-        edge_rows.append([(slot[e.j1], slot[e.j2], e.pair[0], e.pair[1], e.length_path)
-                          for e in sorted(cur.edges.values(), key=lambda e: e.eid)])
+        junctions, edges = layer_rows(cur, slot, track)
+        layers.append(junctions)
+        edge_rows.append(edges)
         prev, prev_slot, prev_track = cur, slot, track
         if verbose:
             print(f'layer {k}: {len(cur.junctions)} junctions, {len(cur.grains)} grains, '
                   f'{"valid" if cur.valid else "INVALID"}, slots {slots.n_slots}')
 
-    J = slots.n_slots
-    pos = np.full((K, J, 2), np.nan)
-    pos_raw = np.full((K, J, 2), np.nan)
-    triple = np.full((K, J, 3), -1, np.int32)
-    track_arr = np.full((K, J), -1, np.int32)
-    for k, layer in enumerate(layers):
-        s = layer['slot']
-        pos[k, s], pos_raw[k, s], triple[k, s], track_arr[k, s] = layer['pos'], layer['pos_raw'], layer['triple'], layer['track']
-    counts = [len(rows) for rows in edge_rows]
-    flat = np.array([row for rows in edge_rows for row in rows], float).reshape(-1, 5)
-    events = np.array([tuple(e) for e in events], dtype=EVENT_DTYPE) if events else np.zeros(0, EVENT_DTYPE)
-
+    events = np.array(events, dtype=EVENT_DTYPE) if events else np.zeros(0, EVENT_DTYPE)
     traj = Trajectory(shape=shape, periodic=periodic, cell=field.cell, dz=field.dz, z0=field.z0, source=field.source,
                       valid=valid, report=report, gids=gids.astype(np.int32), theta=theta, area=area,
-                      centroid=centroid, n_sides=n_sides, pos=pos, pos_raw=pos_raw, triple=triple, track=track_arr,
-                      edge_offsets=np.concatenate([[0], np.cumsum(counts)]).astype(np.int64),
-                      edge_slots=flat[:, :2].astype(np.int32), edge_pair=flat[:, 2:4].astype(np.int32),
-                      edge_len_path=flat[:, 4], events=events)
+                      centroid=centroid, n_sides=n_sides, events=events, **pack_layers(layers, edge_rows, slots.n_slots))
     if smooth and smooth > 1:
         smooth_tracks(traj, smooth)
     return traj

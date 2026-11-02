@@ -11,6 +11,8 @@ slice_graph        build_slice_graph: cleanup -> junctions -> refined positions 
 junction_matching  match_junctions: link the junctions of two consecutive slices (triple, then shared grains + distance)
 trajectory         Trajectory: the per-run store in slot form, save/load, smooth_tracks (line fit along z)
 stack_tracking     track_stack: layer 1 on every slice, slots, events (eliminate, two_sided, switch, appear) (layer 2)
+graingnn_view      dead_schedule, paint_dead, track_view: the stack as GrainGNN can represent it (layer 3)
+samples            build_samples, calibrate_span, GrainSample: training samples in the GrainHeterograph layout (layer 3)
 """
 from .grain_field import Field
 from .exaca_reader import read_vtk, exaca_theta
@@ -19,3 +21,5 @@ from .slice_graph import build_slice_graph
 from .junction_matching import match_junctions, Matching
 from .trajectory import Trajectory, smooth_tracks
 from .stack_tracking import track_stack
+from .graingnn_view import dead_schedule, paint_dead, track_view, schedule_kinds
+from .samples import build_samples, calibrate_span, GrainSample
