@@ -45,6 +45,20 @@ def test_lens_grain_is_allowed():
     assert G.report['duplicate_triples'] >= 1
 
 
+def test_enclosed_grain_is_allowed():
+    S = voronoi_image(); G0 = build_slice_graph(S)
+    host = max(G0.grains.values(), key=lambda g: g.area); cx, cy = host.centroid        # paint a disk inside the largest grain
+    yy, xx = np.mgrid[0:S.shape[0], 0:S.shape[1]]; disk = np.hypot(xx - cx, yy - cy) <= 2.5
+    S2 = G0.cleaned.copy(); new_id = S2.max() + 1; S2[disk & (S2 == host.gid)] = new_id
+    G = build_slice_graph(S2)
+    assert G.valid, G.report
+    assert G.report['enclosed'] == 1 and G.report['junctions'] == G0.report['junctions']
+    inner = G.grains[new_id]
+    assert inner.neighbours == {host.gid} and not inner.junctions and not inner.two_sided
+    assert new_id in G.grains[host.gid].neighbours
+    assert np.allclose(inner.centroid, [cx, cy], atol=0.5)
+
+
 def test_diagonal_self_contact_is_resolved():
     S = voronoi_image().copy(); G0 = build_slice_graph(S, cleanup=False)
     J = next(iter(G0.junctions.values())); i, j = J.corners[0]; H, W = S.shape
