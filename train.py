@@ -28,6 +28,8 @@ def _training_split_size(sample_count, max_samples, train_ratio):
     num_train = int(train_ratio * effective_count)
     if num_train < 1:
         raise ValueError("--train_ratio must assign at least one sample to training")
+    if num_train >= effective_count:
+        raise ValueError("--train_ratio must leave at least one sample for validation")
     return effective_count, num_train
 
 

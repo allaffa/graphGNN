@@ -110,6 +110,7 @@ DATASET_ID = "19uNh7XwHWMhF4PGLFcD-VM5YvYXBpHV_"
         (10, 1, 0.8, "--max_samples must be at least 2"),
         (1, None, 0.8, "at least two dataset samples"),
         (2, None, 0.4, "at least one sample to training"),
+        (2, None, 1.0, "at least one sample for validation"),
     ],
 )
 def test_training_split_rejects_empty_or_one_sample_training(
@@ -119,6 +120,12 @@ def test_training_split_rejects_empty_or_one_sample_training(
 
     with pytest.raises(ValueError, match=message):
         _training_split_size(sample_count, max_samples, train_ratio)
+
+
+def test_training_split_keeps_validation_sample():
+    from train import _training_split_size
+
+    assert _training_split_size(2, None, 0.5) == (2, 1)
 
 
 def _training_dataset(cache_dir):
