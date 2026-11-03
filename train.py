@@ -19,6 +19,18 @@ from graph_trajectory import graph_trajectory
 from metrics import feature_metric, edge_error_metric
 
 
+def _training_split_size(sample_count, max_samples, train_ratio):
+    if max_samples is not None and max_samples < 2:
+        raise ValueError("--max_samples must be at least 2 for a training split")
+    effective_count = min(sample_count, max_samples) if max_samples is not None else sample_count
+    if effective_count < 2:
+        raise ValueError("Training requires at least two dataset samples")
+    num_train = int(train_ratio * effective_count)
+    if num_train < 1:
+        raise ValueError("--train_ratio must assign at least one sample to training")
+    return effective_count, num_train
+
+
 def criterion(data, pred, mask, edge_dict):
    # print(torch.log(pred['edge_event']))
    # print(data['edge_event'])
@@ -273,11 +285,10 @@ if __name__=='__main__':
             data_list = dill.load(inp)
         except:
             raise EOFError
-    if args.max_samples is not None:
-        if args.max_samples < 1:
-            raise ValueError("--max_samples must be at least 1")
-        data_list = data_list[:args.max_samples]
-    num_train = int(args.train_ratio*len(data_list))
+    sample_count, num_train = _training_split_size(
+        len(data_list), args.max_samples, args.train_ratio
+    )
+    data_list = data_list[:sample_count]
     num_valid = len(data_list) - num_train
     sample = data_list[0]
         

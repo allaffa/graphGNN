@@ -98,7 +98,7 @@ conda run --prefix "${VENV_PATH}" python -m pip install --progress-bar on \
 finish_stage
 
 start_stage "Verify PyTorch ROCm version"
-conda run --prefix "${VENV_PATH}" python - <<'PY'
+conda run --no-capture-output --prefix "${VENV_PATH}" python - <<'PY'
 import torch
 
 assert torch.version.hip is not None, f"Expected a ROCm PyTorch build, got {torch.__version__}"

@@ -5,6 +5,9 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from pathlib import Path
 
 import pytest
@@ -22,7 +25,7 @@ def test_training_completes_with_cached_dataset(tmp_path):
 
     work_dir = tmp_path / "training-run"
     work_dir.mkdir()
-    (work_dir / "dataset_train.pkl").symlink_to(dataset)
+    (work_dir / "dataset_train.pkl").symlink_to(dataset.resolve())
     model_dir = tmp_path / "models"
     model_dir.mkdir()
 
@@ -66,10 +69,60 @@ def test_training_dataset_downloads_once_then_reuses_cache(tmp_path, monkeypatch
     assert download_calls == [DATASET_ID]
 
 
+def test_training_dataset_resolves_relative_cache_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    cache_dir = Path("relative-cache")
+    cache_dir.mkdir()
+    dataset = cache_dir / "dataset_train.pkl"
+    dataset.write_bytes(b"cached training data")
+
+    assert _training_dataset(cache_dir) == dataset.resolve()
+
+
+def test_concurrent_training_dataset_cache_population(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    download_barrier = Barrier(2)
+    download_calls = []
+
+    def fake_download(*, id, output, quiet):
+        download_calls.append(id)
+        with gzip.open(output, "wb") as compressed:
+            compressed.write(b"concurrent training data")
+        download_barrier.wait(timeout=10)
+        return output
+
+    monkeypatch.setitem(sys.modules, "gdown", SimpleNamespace(download=fake_download))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        datasets = list(executor.map(lambda _: _training_dataset(tmp_path), range(2)))
+
+    assert datasets[0] == datasets[1]
+    assert datasets[0].read_bytes() == b"concurrent training data"
+    assert download_calls == [DATASET_ID, DATASET_ID]
+
+
 DATASET_ID = "19uNh7XwHWMhF4PGLFcD-VM5YvYXBpHV_"
 
 
+@pytest.mark.parametrize(
+    ("sample_count", "max_samples", "train_ratio", "message"),
+    [
+        (10, 1, 0.8, "--max_samples must be at least 2"),
+        (1, None, 0.8, "at least two dataset samples"),
+        (2, None, 0.4, "at least one sample to training"),
+    ],
+)
+def test_training_split_rejects_empty_or_one_sample_training(
+    sample_count, max_samples, train_ratio, message
+):
+    from train import _training_split_size
+
+    with pytest.raises(ValueError, match=message):
+        _training_split_size(sample_count, max_samples, train_ratio)
+
+
 def _training_dataset(cache_dir):
+    cache_dir = Path(cache_dir).expanduser().resolve()
     cache_dir.mkdir(parents=True, exist_ok=True)
     dataset = cache_dir / "dataset_train.pkl"
     if dataset.is_file():
@@ -78,8 +131,13 @@ def _training_dataset(cache_dir):
     archive = cache_dir / "dataset_train.pkl.gz"
     if not archive.is_file():
         gdown = pytest.importorskip("gdown", reason="install requirements-test.txt to download data")
-        partial_archive = archive.with_suffix(archive.suffix + ".part")
-        partial_archive.unlink(missing_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=archive.name + ".",
+            suffix=".part",
+            dir=cache_dir,
+        )
+        os.close(descriptor)
+        partial_archive = Path(temporary_name)
         try:
             downloaded = gdown.download(
                 id=DATASET_ID,
@@ -92,8 +150,13 @@ def _training_dataset(cache_dir):
         finally:
             partial_archive.unlink(missing_ok=True)
 
-    partial_dataset = dataset.with_suffix(dataset.suffix + ".part")
-    partial_dataset.unlink(missing_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=dataset.name + ".",
+        suffix=".part",
+        dir=cache_dir,
+    )
+    os.close(descriptor)
+    partial_dataset = Path(temporary_name)
     try:
         with gzip.open(archive, "rb") as compressed, partial_dataset.open("wb") as extracted:
             shutil.copyfileobj(compressed, extracted)

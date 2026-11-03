@@ -1,7 +1,9 @@
 """Helpers for reading trajectory files."""
 
 import gzip
+import os
 import shutil
+import tempfile
 from pathlib import Path
 
 
@@ -16,7 +18,13 @@ def decompress_gzip_file(archive_path):
     if not archive_path.is_file():
         raise FileNotFoundError(archive_path)
 
-    partial_path = output_path.with_name(output_path.name + ".part")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=output_path.name + ".",
+        suffix=".part",
+        dir=output_path.parent,
+    )
+    os.close(descriptor)
+    partial_path = Path(temporary_name)
     try:
         with gzip.open(archive_path, "rb") as compressed:
             with partial_path.open("wb") as extracted:
