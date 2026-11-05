@@ -10,6 +10,7 @@ import argparse, time, dill, random, os, glob
 import numpy as np
 import h5py
 import torch
+from scripts.trajectory_io import decompress_gzip_file
 from torch_geometric.loader import DataLoader
 from torch.nn.parallel import DistributedDataParallel
 from data_loader import DynamicHeteroGraphTemporalSignal
@@ -235,7 +236,12 @@ if __name__=='__main__':
     
     """      
 
-    traj_list = sorted(glob.glob(args.truth_dir + 'traj'+ args.seed + '.pkl'))
+    traj_pattern = args.truth_dir + 'traj' + args.seed + '.pkl'
+    if not os.path.isfile(traj_pattern) and os.path.isfile(traj_pattern + '.gz'):
+        decompress_gzip_file(traj_pattern + '.gz')
+    traj_list = sorted(glob.glob(traj_pattern))
+    if not traj_list:
+        raise FileNotFoundError(f'No trajectory found for seed {args.seed}: {traj_pattern}[.gz]')
     
     test_loader = DataLoader(test_tensor, shuffle=False)
     

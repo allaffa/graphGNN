@@ -1,0 +1,7 @@
+dill
+h5py
+matplotlib
+numpy
+pillow
+scipy
+termcolor

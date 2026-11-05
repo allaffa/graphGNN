@@ -1,0 +1,3 @@
+-r requirements-core.txt
+pytest
+gdown>=5.2,<6

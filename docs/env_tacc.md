@@ -1,10 +1,13 @@
 # GrainGNN on TACC (Vista / Stampede3)
 
-**Prerequisite:** conda (Anaconda or Miniconda) installed under `$WORK`.
+**Prerequisite:** Anaconda or Miniconda installed under `$WORK` at `$WORK/anaconda3`.
 
 ## Step 1. Create the environment
 
+Initialize the Conda installation before using `conda`. Run these commands once in a login shell from the repository root:
+
 ```sh
+source "$WORK/anaconda3/bin/activate"
 export PIP_CACHE_DIR=$SCRATCH/.cache/pip
 conda create -n GNN --override-channels -c conda-forge python=3.12 pip
 conda activate GNN
@@ -14,6 +17,12 @@ pip install -r requirements.txt
 ```
 
 Do not conda-install anything else into `GNN`. `torch-sparse/scatter/cluster` are not needed.
+
+In a new login shell, activate the existing environment with:
+
+```sh
+source "$WORK/anaconda3/bin/activate" GNN
+```
 
 ## Step 2. Check
 
