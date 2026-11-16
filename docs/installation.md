@@ -24,7 +24,7 @@ Then install GrainGNN's PyTorch Geometric and scientific Python dependencies:
 ./install_dependencies.sh
 ```
 
-The script expects PyTorch to already be installed, so it will not replace a selected CPU, CUDA, or ROCm build. It installs the core dependencies listed in `requirements-core.txt`, including VTK for the ExaCA VTK reader.
+The script expects PyTorch to already be installed, so it will not replace a selected CPU, CUDA, or ROCm build. It installs only the core dependencies listed in `requirements-core.txt`; VTK is not included because it is only needed by the optional ExaCA VTK reader. Install it separately with `python -m pip install vtk` if using that reader.
 
 ## TACC Vista and Stampede3
 
