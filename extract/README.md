@@ -1,56 +1,64 @@
 # extract: GrainGNN training data from ExaCA
 
-Turns the grain-id field of a solidification simulation into the training samples `train.py` reads.
-Input: an ExaCA run (or a cuPF file). Output: one pickle. Self-contained; the training code is not needed.
+The `GrainID` field of an ExaCA run -> the sample pickle `train.py` reads. One command. Self-contained; the
+training code is not needed.
 
 ## Install
 
 ```sh
-pip install .              # from the repository root; installs the `extract` package only
-pip install ".[cupf]"      # also h5py, for cuPF files
+pip install .              # from the repository root
 ```
-Python >= 3.9, numpy, scipy, vtk. Without installing: run from the repository root, or put it on `PYTHONPATH`.
+Python >= 3.9, numpy, scipy, vtk. Without installing: run from the repository root.
 
 ## Use
 
+One directory per run, each holding its `input.json` and the VTK it wrote:
 ```sh
-python -m extract runs/G1.9_V0.558_s1001 runs/G1.9_V0.558_s1002 ... dataset_exaca.pkl \
-    --orientations GrainOrientationVectors.csv --jobs 8
-python train.py --dataset exaca ...
+python -m extract runs/run1 runs/run2 runs/run3 dataset_exaca.pkl
 ```
-`graingnn-extract` is the same command after `pip install`.
+Several runs in one directory, one json each:
+```sh
+python -m extract input1.json input2.json input3.json dataset_exaca.pkl
+```
+Only the VTK files, no json: G (K/um), R (m/s) and seed per file, then one call to merge:
+```sh
+python -m extract Data1.vtk d1.pkl --G 1.9 --R 0.558 --seed 1 --orientations GrainOrientationVectors.csv
+python -m extract Data2.vtk d2.pkl --G 5.0 --R 1.0   --seed 2 --orientations GrainOrientationVectors.csv
+python -m extract d1.pkl d2.pkl dataset_exaca.pkl
+```
+Then:
+```sh
+python train.py --dataset exaca
+```
+`train.py --dataset NAME` reads `dataset_NAME.pkl` from the working directory. `graingnn-extract` is the same
+command after `pip install`.
 
-A source is one of
+From a run directory or json: G = `TemperatureData.G` / 1e6, R = `TemperatureData.R` / `TemperatureData.G`,
+seed = `RandomSeed`, the VTK = `Printing.PathToOutput/OutputFile.vtk`, the orientation table = `GrainOrientationFile`
+when it is an absolute path or lies in the run directory, else `--orientations`.
 
-| source | what is read |
-|---|---|
-| ExaCA run directory, or its `input.json` | G, R, seed, the VTK file and the orientation csv from the json |
-| ExaCA `GrainID` VTK file | `--G` K/um, `--R` m/s, `--seed`; `--orientations` |
-| cuPF h5 file (3D `alpha` or QoI `cross_sec`) | G, R, seed from the file name |
-| pickle written by this command | included as it is |
-
-Several sources give one dataset, stack order shuffled with a fixed seed (`train.py` takes the tail of the list as
-the validation split). A cluster campaign extracts each stack in its own job and merges the pickles with one call.
+The stacks are shuffled with a fixed seed into one list; `train.py` takes the tail as the validation split. On a
+cluster, extract each run in its own job to its own pickle and merge the pickles with one call.
 
 | option | default | |
 |---|---|---|
-| `--orientations CSV` | from the run | ExaCA orientation table, `share/ExaCA/GrainOrientationVectors.csv` |
-| `--span N` | per stack | layers between a state and its labels; default: the paper's rule, the largest span with fewer than 9 switches and 4.5 eliminations per window |
+| `--orientations CSV` | from the json | the orientation table of the ExaCA install, `share/ExaCA/GrainOrientationVectors.csv` |
+| `--G`, `--R`, `--seed` | from the json | for a bare VTK file: K/um, m/s, integer |
+| `--span N` | per stack | layers between a state and its labels; default: the largest span with fewer than 9 switches and 4.5 eliminations per window |
 | `--smooth N` | 5 | window in layers of the line fit along z applied to junction tracks; `0` keeps the raw positions |
-| `--z-range UM` | 48 | height that z and span are scaled by (the paper's 120 frames of 0.4 um) |
-| `--theta-x` | tilted | azimuth of the tilted `<100>` axis, or `lateral` for the in-plane axis |
+| `--z-range UM` | 48 | height that z and span are scaled by |
 | `--jobs N` | 1 | stacks extracted in parallel |
-| `--shuffle-seed N` | 35 | `-1` keeps the given order |
-| `--save-traj DIR` | | also the raw and painted trajectories per stack, npz, for inspection |
+| `--shuffle-seed N` | 35 | stack order in the dataset; `-1` keeps the given order |
+| `--save-traj DIR` | | also the raw and painted junction trajectories per stack, npz |
+| `--theta-x` | tilted | azimuth of the tilted `<100>` axis, or `lateral` for the in-plane axis |
 
 ## What ExaCA must provide
 
-- Directional solidification, periodic in x and y, final `GrainID` written once (`Printing.Interlayer.Fields: ["GrainID"]`,
-  ASCII or binary VTK). No time snapshots are needed.
-- `input.json` kept in the run directory: `TemperatureData.G` (K/m) and `R` (K/s) become G = G/1e6 K/um and
-  V = R/G m/s; `RandomSeed` is the seed.
-- The orientation table used by the run.
-- [`examples/input.json`](examples/input.json): the campaign setup, 0.25 um cells, 40 x 40 x 50 um, no nucleation,
+- Directional solidification, periodic in x and y.
+- The final `GrainID` field written once: `Printing.Interlayer.Fields: ["GrainID"]`, ASCII or binary VTK.
+  Time snapshots (`Printing.Intralayer`) are not used.
+- The `input.json` of the run, and the orientation table the run used.
+- [`examples/input.json`](examples/input.json): the campaign setup. 0.25 um cells, 40 x 40 x 50 um, no nucleation,
   `Substrate.Epsilon` 0.002 (cells per degree; keep `Epsilon x CellSize` fixed when changing the cell size).
 
 ExaCA version notes (pipit branch, 07f2d5d). Three fixes were applied for the campaign: `acos(|z|)` in the capture
@@ -81,17 +89,15 @@ Units as in the paper: positions in the unit square, area as a fraction of the s
 | stage | modules | |
 |---|---|---|
 | 1 slice | `slice_cleanup`, `boundary_tracing`, `slice_graph` | one layer -> junctions, boundaries, grains; islands repainted, degree-4 corners split, positions by line fit, Euler check |
-| 2 track | `junction_matching`, `stack_tracking`, `trajectory` | junctions matched layer to layer by grain triple; events: eliminate, two-sided, enclosed, switch |
+| 2 track | `junction_matching`, `stack_tracking`, `trajectory` | junctions matched layer to layer by grain triple; events: eliminate, two-sided, enclosed, switch; tracks smoothed along z |
 | 3 view | `graingnn_view` | what GrainGNN can represent: a grain is dead from its first layer with at most two junctions, its cells go to the neighbours |
 | 3 samples | `samples`, `dataset` | states, labels, masks; span calibration; pickles |
-| readers | `exaca_reader`, `cupf_reader`, `grain_field`, `periodic_grid` | VTK, h5, run directory; grids periodic in x, y, both or neither |
+| readers | `exaca_reader`, `grain_field`, `periodic_grid` | run directory, json, VTK; grids periodic in x, y, both or neither |
 
 ## Checks
 
-- Every layer of the campaign stacks is a valid trivalent network (200/200 at 0.25 um; cuPF 121/121, the legacy
-  extractor 119/121). About 0.05% of cells are changed by the cleanup.
-- Against the legacy cuPF extractor on seed 10020: same junction rows (5622), 99.9% same grain triples, label RMS
-  2.42 vs 2.44 px, switching edges 159 vs 158.
+- Every layer of the campaign stacks is a valid trivalent network (200/200 at 0.25 um). About 0.05% of cells are
+  changed by the cleanup.
 - 48 ms per 160 x 160 layer, about 10 s per 200-layer stack.
 
 ```sh
