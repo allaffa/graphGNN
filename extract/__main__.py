@@ -78,7 +78,7 @@ def main(argv=None):
     p.add_argument('--R', type=float, help='m/s, for a VTK source')
     p.add_argument('--seed', type=int, default=0, help='for a VTK source')
     p.add_argument('--span', type=int, help='layers (default: calibrated from the event rates of each stack)')
-    p.add_argument('--smooth', type=int, default=0, help='smooth_tracks window in layers')
+    p.add_argument('--smooth', type=int, default=5, help='smooth_tracks window in layers; 0 keeps the raw positions')
     p.add_argument('--z-range', type=float, default=Z_RANGE_UM, help='um, the height z and span are scaled by')
     p.add_argument('--save-traj', metavar='DIR', help='also write <DIR>/<name>_raw.npz and _view.npz per stack')
     p.add_argument('--shuffle-seed', type=int, default=35, help='stack order in the dataset (-1: the given order)')

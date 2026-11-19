@@ -15,7 +15,7 @@ Python >= 3.9, numpy, scipy, vtk. Without installing: run from the repository ro
 
 ```sh
 python -m extract runs/G1.9_V0.558_s1001 runs/G1.9_V0.558_s1002 ... dataset_exaca.pkl \
-    --orientations GrainOrientationVectors.csv --smooth 5 --jobs 8
+    --orientations GrainOrientationVectors.csv --jobs 8
 python train.py --dataset exaca ...
 ```
 `graingnn-extract` is the same command after `pip install`.
@@ -36,7 +36,7 @@ the validation split). A cluster campaign extracts each stack in its own job and
 |---|---|---|
 | `--orientations CSV` | from the run | ExaCA orientation table, `share/ExaCA/GrainOrientationVectors.csv` |
 | `--span N` | per stack | layers between a state and its labels; default: the paper's rule, the largest span with fewer than 9 switches and 4.5 eliminations per window |
-| `--smooth N` | 0 | window in layers of the line fit along z applied to junction tracks (5 used) |
+| `--smooth N` | 5 | window in layers of the line fit along z applied to junction tracks; `0` keeps the raw positions |
 | `--z-range UM` | 48 | height that z and span are scaled by (the paper's 120 frames of 0.4 um) |
 | `--theta-x` | tilted | azimuth of the tilted `<100>` axis, or `lateral` for the in-plane axis |
 | `--jobs N` | 1 | stacks extracted in parallel |
