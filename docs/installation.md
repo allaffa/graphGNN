@@ -1,6 +1,6 @@
 # GrainGNN Installation
 
-Create one Python environment for GrainGNN on each machine. The laptop uses Python's `venv`; TACC uses Conda; Frontier uses the ROCm 7.2 Conda installer included in this repository. Follow only the section for the machine you are using.
+Create one Python environment for GrainGNN on each machine. The laptop uses Python's `venv`; TACC uses Conda; Frontier uses the ROCm 7.2 Conda installer and Aurora uses the Intel XPU venv installer included in this repository. Follow only the section for the machine you are using.
 
 ## Laptop
 
@@ -78,6 +78,40 @@ tail -f frontier-install.log
 
 The log reports the current installation stage; package downloads may also show pip's progress bar. Press `Ctrl+C` to stop following the log without stopping the installer.
 
+## NERSC Perlmutter
+
+From the repository root on Perlmutter, run the installer. It creates a Conda environment at `GrainGNN-Installation-Perlmutter-CUDA130/graingnn_venv_cuda130` by default, installs PyTorch for CUDA 13.0, then installs GrainGNN's core dependencies:
+
+```sh
+bash scripts/hpc/nersc/perlmutter/installation/install-cuda130.sh
+```
+
+To activate the environment in a later shell, change to the repository root, load the same module stack and activate its Conda prefix:
+## ALCF Aurora
+
+Aurora's Intel GPU (XPU) PyTorch build is provided by the ALCF `frameworks` module; it is not installed from pip. From the repository root on Aurora, run the installer. It loads `frameworks`, creates a Python venv at `GrainGNN-Installation-Aurora-XPU/graingnn_venv_xpu` with `--system-site-packages` so the frameworks PyTorch, NumPy, and mpi4py are inherited, then installs PyTorch Geometric and GrainGNN's core dependencies with the frameworks `torch` and `numpy` versions pinned:
+
+```sh
+bash scripts/hpc/alcf/aurora/installation/install-xpu.sh
+```
+
+To activate the environment in a later shell:
+
+```sh
+cd /path/to/graphGNN
+module reset
+module load cpe/26.03 PrgEnv-gnu/8.7.0 craype-accel-nvidia80 cudatoolkit/13.0
+module load conda/Miniforge3-26.9.4-1
+conda activate "$PWD/GrainGNN-Installation-Perlmutter-CUDA130/graingnn_venv_cuda130"
+```
+
+As on Frontier, the environment sets `PYTHONNOUSERSITE=1` on activation, accepts `INSTALL_ROOT`, `VENV_PATH`, and `PYTHON_VERSION` overrides, and does not install HydraGNN's additional packages or optional PyG compiled extensions. Run the GPU smoke test inside a GPU allocation with `python scripts/check_gpu.py`.
+module load frameworks
+source "$PWD/GrainGNN-Installation-Aurora-XPU/graingnn_venv_xpu/bin/activate"
+```
+
+The installer configures the ALCF proxy automatically when PyPI is not directly reachable (as on compute nodes), and accepts `INSTALL_ROOT`, `VENV_PATH`, `FRAMEWORKS_MODULE`, and `RECREATE_ENV=1` overrides. It does not install HydraGNN's additional packages (ADIOS2, DDStore, GPTL, and others) or optional PyG compiled extensions. Run the GPU smoke test inside a compute-node allocation with `python scripts/check_gpu.py --require-xpu`.
+
 ## Verify
 
 After installation, activate the environment and run the focused tests:
@@ -116,6 +150,12 @@ On Frontier, load the documented ROCm 7.2 modules and activate the GrainGNN envi
 
 ```sh
 python scripts/check_gpu.py --require-rocm
+```
+
+On Aurora, load `frameworks` and activate the GrainGNN venv as above, then run:
+
+```sh
+python scripts/check_gpu.py --require-xpu
 ```
 
 The check reports the PyTorch/PyG versions and visible GPU, performs a synchronized PyTorch tensor operation, transfers a heterogeneous graph to the GPU, runs a PyG `HeteroConv` with `SAGEConv`, and checks the output and gradients. Run it inside a scheduler-provided GPU allocation; it is not part of the CPU-only pytest suite.
