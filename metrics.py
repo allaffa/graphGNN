@@ -15,12 +15,17 @@ class feature_metric:
         self.model_type = model_type
         self.model_id = model_id
         self.metric_list = []
+        self.denominator_epoch = None
         
         self.acc_dicts = defaultdict(float)
         self.test_label, self.test_prob = [], []
 
             
     def record(self, y_dict, pred, mask, epoch):
+        # Denominators are summed over the first validation epoch (0 in train.py, 1 in dist_train).
+        if self.denominator_epoch is None:
+            self.denominator_epoch = epoch
+        fill_denominators = epoch == self.denominator_epoch
 
         def add(key, idx):
            # print((( mask[key][:,0]*(data[key][:,idx] - pred[key][:,idx])**2 )))
@@ -36,7 +41,7 @@ class feature_metric:
            
             self.acc_dicts[key+str(idx)+'err'] += float(torch.sum( mask[key][:,0]*(y_dict[key][:,idx] - pred[key][:,idx])**2 ))
             #print(mask[key])
-            if epoch == 0:
+            if fill_denominators:
                 self.acc_dicts[key+str(idx)] += float(torch.sum( mask[key][:,0] *(y_dict[key][:,idx])**2 ))
         
 
