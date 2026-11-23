@@ -174,9 +174,10 @@ def train(model, train_loader, test_loader, rank, hp, args, train_loss_list, tes
         
         scheduler.step()
         dist.barrier()
-        
-    print('model id:', args.model_id, 'loss', test_loss)
-    metric.summary()
+
+    if rank == 0:
+        print('model id:', args.model_id, 'loss', test_loss)
+        metric.summary()
     
     
     train.metric = metric
